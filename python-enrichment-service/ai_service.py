@@ -117,7 +117,7 @@ async def analyze_lead(
             reasoning=f"JSON parsing error: {str(e)}"
         )
     except Exception as e:
-        # Log error but return graceful fallback
+        
         import logging
         logging.error(f"AI Service Error: {str(e)}")
         return AIAnalysis(
