@@ -39,6 +39,10 @@ If this grew to thousands of leads, I'd move to a proper database.
 
 ## AI Strategy
 
+### Model Selection
+
+The system uses gemini-2.5-flash for lead analysis. This model provides a good balance of speed and quality for structured JSON responses.
+
 ### Prompt Design
 
 The prompt gives Gemini clear context about ABC Company's target market. It asks for specific outputs:

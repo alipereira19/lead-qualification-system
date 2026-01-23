@@ -86,22 +86,27 @@ async def analyze_lead(
     )
     
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = await model.generate_content_async(
             prompt,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.3,
-                max_output_tokens=500,
+                max_output_tokens=2000,
             )
         )
         
         response_text = response.text.strip()
         
-        if response_text.startswith('```'):
-            response_text = response_text.split('```')[1]
-            if response_text.startswith('json'):
-                response_text = response_text[4:]
-        response_text = response_text.strip()
+        # Extract JSON from markdown code blocks if present
+        import re
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response_text)
+        if json_match:
+            response_text = json_match.group(1).strip()
+        else:
+            # Try to find JSON object directly
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                response_text = json_match.group(0)
         
         parsed = json.loads(response_text)
         analysis = AIAnalysis(**parsed)
