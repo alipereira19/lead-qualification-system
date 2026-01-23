@@ -90,15 +90,20 @@ async def enrich_lead(lead: LeadRequest):
         )
         logger.info(f"AI Score: {ai_analysis.leadScore}")
         
+        error_msg = None
+        if ai_analysis.reasoning.startswith("Error:") or ai_analysis.reasoning.startswith("JSON parsing error:"):
+            error_msg = ai_analysis.reasoning
+        
         response = EnrichmentResponse(
-            status="success",
+            status="success" if not error_msg else "partial",
             normalizedEmail=normalized['email'],
             enrichedWebsite=enriched_website,
             companyInfo=company_info,
             aiSummary=ai_analysis.companySummary,
             aiFitScore=ai_analysis.leadScore,
             aiRecommendation=ai_analysis.recommendation,
-            aiReasoning=ai_analysis.reasoning
+            aiReasoning=ai_analysis.reasoning,
+            errorMessage=error_msg
         )
         
         logger.info(f"Successfully enriched lead: {normalized['companyName']}")

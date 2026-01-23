@@ -97,6 +97,15 @@ async def analyze_lead(
         
         response_text = response.text.strip()
         
+        if not response_text:
+            return AIAnalysis(
+                companySummary=f"Could not analyze {company_name} - empty response from AI.",
+                fitAssessment="Unable to assess.",
+                leadScore=50,
+                recommendation="Manual review required.",
+                reasoning="Error: AI returned empty response (quota may be exceeded)"
+            )
+        
         # Extract JSON from markdown code blocks if present
         import re
         json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response_text)
@@ -107,6 +116,15 @@ async def analyze_lead(
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
                 response_text = json_match.group(0)
+        
+        if not response_text:
+            return AIAnalysis(
+                companySummary=f"Could not analyze {company_name} - no valid JSON in response.",
+                fitAssessment="Unable to assess.",
+                leadScore=50,
+                recommendation="Manual review required.",
+                reasoning="Error: Could not extract JSON from AI response"
+            )
         
         parsed = json.loads(response_text)
         analysis = AIAnalysis(**parsed)
