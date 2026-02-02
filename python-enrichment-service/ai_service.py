@@ -91,11 +91,14 @@ async def analyze_lead(
             prompt,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.3,
-                max_output_tokens=2000,
+                max_output_tokens=4000,
             )
         )
         
         response_text = response.text.strip()
+        
+        import logging
+        logging.info(f"RAW AI RESPONSE (first 500 chars): {response_text[:500] if response_text else 'EMPTY'}")
         
         if not response_text:
             return AIAnalysis(
@@ -126,9 +129,12 @@ async def analyze_lead(
                 reasoning="Error: Could not extract JSON from AI response"
             )
         
+        logging.info(f"EXTRACTED JSON (first 500 chars): {response_text[:500]}")
+        
         parsed = json.loads(response_text)
         analysis = AIAnalysis(**parsed)
         
+        logging.info(f"PARSED SCORE: {analysis.leadScore}")
         return analysis
         
     except json.JSONDecodeError as e:
