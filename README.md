@@ -35,9 +35,10 @@ Google Form → Google Sheets → n8n Workflow → Python Service → AI Analysi
 │   ├── ai_service.py        # Google Gemini AI integration
 │   ├── requirements.txt     # Python dependencies
 │   └── .env                 # API keys (not in repo)
-└── docs/
-    ├── WRITEUP.md           # Technical decisions & architecture
-    └── WORKFLOW.md          # n8n workflow documentation
+├── docs/
+│   └── WRITEUP.md           # Technical decisions & architecture
+├── Lead_Qualification_System.json  # n8n workflow export
+└── requirements.txt         # Root dependencies
 ```
 
 ## Setup
