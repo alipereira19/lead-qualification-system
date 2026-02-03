@@ -1,0 +1,1339 @@
+{
+  "name": "Lead Qualification System",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I",
+          "mode": "list",
+          "cachedResultName": "ABC Company - Leads Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 110786534,
+          "mode": "list",
+          "cachedResultName": "Respuestas de formulario 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit#gid=110786534"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        64
+      ],
+      "id": "0c053809-d30e-43c8-a9bd-35b074bb91b0",
+      "name": "Google Sheets Trigger",
+      "retryOnFail": true,
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "ahSaYky3X4zI6SkL",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://unsportsmanlike-clarisa-undelightedly.ngrok-free.dev/enrich",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "fullName",
+              "value": "={{ $json.fullName }}\n"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.email }}\n"
+            },
+            {
+              "name": "companyName",
+              "value": "={{ $json.companyName }}\n"
+            },
+            {
+              "name": "website",
+              "value": "={{ $json.website }}\n"
+            },
+            {
+              "name": "country",
+              "value": "={{ $json.country }}\n"
+            },
+            {
+              "name": "leadSource",
+              "value": "={{ $json.leadSource }}\n"
+            },
+            {
+              "name": "budget",
+              "value": "={{ $json.budget }}\n"
+            },
+            {
+              "name": "notes",
+              "value": "=\t{{ $json.notes }}"
+            },
+            {
+              "name": "consent",
+              "value": "={{ $json[\"Consent to Contact\"] === \"Yes\" }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        800,
+        80
+      ],
+      "id": "e1e49b0a-db1b-44b4-a84c-c23db39e17d4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I",
+          "mode": "list",
+          "cachedResultName": "ABC Company - Leads Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 110786534,
+          "mode": "list",
+          "cachedResultName": "Respuestas de formulario 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit#gid=110786534"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Email Address",
+              "lookupValue": "={{ $('Google Sheets Trigger').item.json[\"Email Address\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        176,
+        64
+      ],
+      "id": "c67d0010-ad14-423c-a586-c21b30fcb64f",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OBV2hoD6YFrGGdd7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allTriggerItems = $('Google Sheets Trigger').all();\nconst trigger = allTriggerItems[allTriggerItems.length - 1];\n// Skip if already processed\nconst enrichmentStatus = trigger.json[\"Enrichment Status\"] || \"\";\nif (enrichmentStatus !== \"\") {\n  return []; // Return empty to stop the workflow\n}\nconst newEmail = trigger.json[\"Email Address\"].toLowerCase().trim();\nconst allRows = $('Get row(s) in sheet').all();\nconst count = allRows.filter(row => {\n  const email = (row.json[\"Email Address\"] || \"\").toLowerCase().trim();\n  return email === newEmail;\n}).length;\nif (count > 1) {\n  return [{\n    json: {\n      Timestamp: trigger.json[\"Timestamp\"],\n      isDuplicate: true,\n      \"Enrichment Status\": \"DUPLICATE\"\n    }\n  }];\n}\nreturn [{\n  json: {\n    Timestamp: trigger.json[\"Timestamp\"],\n    fullName: trigger.json[\"Full Name\"],\n    email: trigger.json[\"Email Address\"],\n    companyName: trigger.json[\"Company Name\"],\n    website: trigger.json[\"Company Website\"] || \"\",\n    country: trigger.json[\"Country\"],\n    leadSource: trigger.json[\"Lead Source\"],\n    budget: trigger.json[\"Estimated Budget\"],\n    notes: trigger.json[\"Notes\"] || \"\",\n    consent: trigger.json[\"Consent to Contact\"] === \"Yes\",\n    isDuplicate: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        64
+      ],
+      "id": "afa70650-6898-488d-9b76-e0fc424a8c10",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8f325dd2-16eb-4425-b0d5-fde72afd412c",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1008,
+        80
+      ],
+      "id": "19f90e87-bdb1-4ca8-9b86-c077247e22d9",
+      "name": "IS API OK?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I",
+          "mode": "list",
+          "cachedResultName": "ABC Company - Leads Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 110786534,
+          "mode": "list",
+          "cachedResultName": "Respuestas de formulario 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit#gid=110786534"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Enrichment Status": "ERROR",
+            "Error Logs": "={{ $json.errorMessage }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Normalized Email",
+              "displayName": "Normalized Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Enrichment Status",
+              "displayName": "Enrichment Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Enriched Website",
+              "displayName": "Enriched Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "AI Summary",
+              "displayName": "AI Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "AI Fit Score",
+              "displayName": "AI Fit Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "AI Recommendation",
+              "displayName": "AI Recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Error Logs",
+              "displayName": "Error Logs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Company Website",
+              "displayName": "Company Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Lead Source",
+              "displayName": "Lead Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Estimated Budget",
+              "displayName": "Estimated Budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Consent to Contact",
+              "displayName": "Consent to Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1216,
+        176
+      ],
+      "id": "d7f37769-7c66-4680-a5ac-cc5fad7a2423",
+      "name": "Error Log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OBV2hoD6YFrGGdd7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6a1c2edc-2cf2-4ae5-af01-9c5d8a51de63",
+              "leftValue": "={{ $('Code in JavaScript').first().json.consent }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1424,
+        -32
+      ],
+      "id": "af635ca0-8ac3-46b8-8b69-93b8264e6d7c",
+      "name": "Consent?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1584,
+        192
+      ],
+      "id": "cfcc53e4-9428-4175-a9f4-54a8bdbc1e3b",
+      "name": "No Consent"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('HTTP Request').item.json.aiFitScore }}",
+                    "rightValue": 70,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    },
+                    "id": "c48aa1ac-d70e-4ff3-95d0-63793b3ab88e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hot Lead"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f4170132-c657-414d-8eee-db1357045542",
+                    "leftValue": "={{ $('HTTP Request').item.json.aiFitScore }}",
+                    "rightValue": 40,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Warm Lead"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ddd7ccf2-aaf1-4687-8c8f-5026265920e1",
+                    "leftValue": "",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cold Lead"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1632,
+        -128
+      ],
+      "id": "8d82c2a9-b1a0-4332-ae30-363af088ea7f",
+      "name": "Route by Score"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "fbac215c42d13f65c5bdfe997d14c61b84c155a7313d5e7b9a2fe46142ff6d88@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "N8n Project"
+        },
+        "start": "={{ $now.plus(1, 'day').toISO() }}",
+        "end": "={{ $now.plus(1, 'day').plus(30, 'minutes').toISO() }}",
+        "additionalFields": {
+          "description": "=Lead: {{ $('Code in JavaScript').first().json.fullName }} Email: {{ $('Code in JavaScript').first().json.email }} Company: {{ $('Code in JavaScript').first().json.companyName }} Score: {{ $('HTTP Request').item.json.aiFitScore }} Recommendation: {{ $('HTTP Request').item.json.aiRecommendation }}",
+          "summary": "=Follow up: {{ $('Code in JavaScript').first().json.companyName }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1888,
+        -432
+      ],
+      "id": "f7ccb537-79ab-4226-bd83-4502da8089a4",
+      "name": "Schedule Call Reminder",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "IEjpqkpMKZeWeovt",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Code in JavaScript').first().json.email }}",
+        "subject": "Thanks for your interest!",
+        "emailType": "text",
+        "message": "Hi, thank you for your interest in our services. We will contact you soon.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2080,
+        -432
+      ],
+      "id": "c0b5356d-60d5-44b3-abe1-5e06d1d4fd7d",
+      "name": "Send Email",
+      "webhookId": "c96c74d7-78c7-4587-a84f-8c24a5b408d3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Nv2daowu37hWkJT8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "fbac215c42d13f65c5bdfe997d14c61b84c155a7313d5e7b9a2fe46142ff6d88@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "N8n Project"
+        },
+        "start": "={{ $now.plus(3, 'days').toISO() }}",
+        "end": "={{ $now.plus(3, 'days').plus(30, 'minutes').toISO() }}",
+        "additionalFields": {
+          "summary": "=Warm Lead: {{ $('Code in JavaScript').first().json.companyName }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1888,
+        -112
+      ],
+      "id": "430ce230-e173-4be3-990f-f8a5571df676",
+      "name": "Set Reminder",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "IEjpqkpMKZeWeovt",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Following up - {{ $('Code in JavaScript').first().json.companyName }}",
+        "message": "=Hi {{ $('Code in JavaScript').first().json.fullName }}, Thank you for your interest in our services. We would love to learn more about your needs at {{ $('Code in JavaScript').first().json.companyName }}. Would you be available for a brief call next week? Best regards, ABC Company Team",
+        "options": {
+          "sendTo": "={{ $('Code in JavaScript').first().json.email }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2080,
+        -112
+      ],
+      "id": "1b82e5c8-d348-4224-a516-d2c0d91a057b",
+      "name": "Draft Email",
+      "webhookId": "75e63d56-ebe3-40fb-8ed4-f20d3d378007",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Nv2daowu37hWkJT8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1904,
+        176
+      ],
+      "id": "655a617e-5341-4c06-bbdf-7bf5eebe26fb",
+      "name": "Cold Lead"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dc577bde-8d61-4b32-a40a-009a9b101abe",
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        592,
+        64
+      ],
+      "id": "601c24ad-0fb9-4302-b37d-a897c0dd1d53",
+      "name": "IS DUPLICATE?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I",
+          "mode": "list",
+          "cachedResultName": "ABC Company - Leads Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 110786534,
+          "mode": "list",
+          "cachedResultName": "Respuestas de formulario 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit#gid=110786534"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.Timestamp }}",
+            "Enrichment Status": "DUPLICATE"
+          },
+          "matchingColumns": [
+            "Timestamp"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Normalized Email",
+              "displayName": "Normalized Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Enrichment Status",
+              "displayName": "Enrichment Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Enriched Website",
+              "displayName": "Enriched Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "AI Summary",
+              "displayName": "AI Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "AI Fit Score",
+              "displayName": "AI Fit Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "AI Recommendation",
+              "displayName": "AI Recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Error Logs",
+              "displayName": "Error Logs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Company Website",
+              "displayName": "Company Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Lead Source",
+              "displayName": "Lead Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Estimated Budget",
+              "displayName": "Estimated Budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Consent to Contact",
+              "displayName": "Consent to Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        720,
+        -176
+      ],
+      "id": "cd3ec4dc-c69e-4f15-853a-8169d74a7564",
+      "name": "Mark as DUPLICATE",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OBV2hoD6YFrGGdd7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I",
+          "mode": "list",
+          "cachedResultName": "ABC Company - Leads Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 110786534,
+          "mode": "list",
+          "cachedResultName": "Respuestas de formulario 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1BY4J90uGaAiL5nMmuHTbSKyOmu53sek4wFUb6tG5w0I/edit#gid=110786534"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $('Code in JavaScript').first().json.Timestamp }}",
+            "Normalized Email": "={{ $json.normalizedEmail }}",
+            "Enrichment Status": "={{ $json.status }}",
+            "Enriched Website": "={{ $json.enrichedWebsite }}",
+            "AI Summary": "={{ $json.aiSummary }}",
+            "AI Fit Score": "={{ $json.aiFitScore }}",
+            "AI Recommendation": "={{ $json.aiRecommendation }}",
+            "Error Logs": "={{ $json.errorMessage }}"
+          },
+          "matchingColumns": [
+            "Timestamp"
+          ],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Normalized Email",
+              "displayName": "Normalized Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Enrichment Status",
+              "displayName": "Enrichment Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Enriched Website",
+              "displayName": "Enriched Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Summary",
+              "displayName": "AI Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Fit Score",
+              "displayName": "AI Fit Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Recommendation",
+              "displayName": "AI Recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error Logs",
+              "displayName": "Error Logs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Company Website",
+              "displayName": "Company Website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Lead Source",
+              "displayName": "Lead Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Estimated Budget",
+              "displayName": "Estimated Budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Notes",
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Consent to Contact",
+              "displayName": "Consent to Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1216,
+        -32
+      ],
+      "id": "85ee72b5-d2e2-4f29-a42c-eaa75ffce26d",
+      "name": "Save enrichment results",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OBV2hoD6YFrGGdd7",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "IS API OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "IS DUPLICATE?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IS API OK?": {
+      "main": [
+        [
+          {
+            "node": "Save enrichment results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consent?": {
+      "main": [
+        [
+          {
+            "node": "Route by Score",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Consent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Score": {
+      "main": [
+        [
+          {
+            "node": "Schedule Call Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cold Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Call Reminder": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Reminder": {
+      "main": [
+        [
+          {
+            "node": "Draft Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IS DUPLICATE?": {
+      "main": [
+        [
+          {
+            "node": "Mark as DUPLICATE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save enrichment results": {
+      "main": [
+        [
+          {
+            "node": "Consent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "90efef9c-4527-4c1e-b479-8de2cb7968b0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fc7957911c4da47b896e749fcae2b5a2800fa3fbe3c22425c9a61b7a47db0cb6"
+  },
+  "id": "Tj-BOp0ocjo4o7zLJiOUs",
+  "tags": []
+}

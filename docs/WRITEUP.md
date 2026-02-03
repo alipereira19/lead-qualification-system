@@ -2,61 +2,82 @@
 
 ## Architecture Overview
 
-The system follows a simple event-driven architecture:
+The system follows an event-driven architecture with intelligent routing:
 
+```
+Google Form → Google Sheets → n8n → Python Service → AI Analysis → Score Routing
+```
 
-Google Form → Google Sheets → n8n → Python Service → Google Sheets
+When someone submits a lead:
+1. Google Forms writes to Sheets
+2. n8n detects the new row and checks for duplicates
+3. Python service enriches company data and calls Gemini AI
+4. n8n routes the lead based on AI score (Hot/Warm/Cold)
+5. Automated actions are triggered (calendar events, emails)
 
-
-When someone submits a lead, Google Forms writes to Sheets, n8n picks it up, calls our Python service for enrichment, and updates the row with AI analysis.
-
-I kept things simple on purpose. The exam mentioned this is for "small and mid-sized e-commerce businesses" - they don't need Kubernetes or a complex microservices setup. A single Python service handles everything.
+I kept the architecture simple intentionally. The exam mentioned this is for "small and mid-sized e-commerce businesses" - they don't need Kubernetes or complex microservices. A single Python service handles all enrichment and AI logic.
 
 ## Tool Choices
 
 ### n8n over Make
 
-I went with n8n because:
-- Runs locally, no account limits
-- Code nodes let me write custom logic
-- Free forever, not just free tier
+I chose n8n because:
+- Self-hosted, no operation limits
+- Code nodes for custom JavaScript logic
+- Free forever (not just free tier)
+- Easy integration with Google services via OAuth
 
-Make would've worked too, but the 1000 operations/month limit felt restrictive for testing.
+Make would've worked, but the 1000 operations/month limit felt restrictive for testing and production use.
 
 ### FastAPI over Flask
 
-FastAPI handles async out of the box. Since we're making HTTP calls to websites and the Gemini API, async matters. Also, Pydantic validation saves a lot of boilerplate.
+FastAPI handles async natively. Since we make HTTP calls to websites and the Gemini API concurrently, async performance matters. Pydantic validation is built-in, saving boilerplate code.
 
 ### Google Sheets as Database
 
-For a lead qualification system handling maybe a few hundred leads per month, Sheets is fine. It's:
-- Free
-- Everyone knows how to use it
-- Easy to share with sales teams
-- Good enough for this use case
+For a lead system handling hundreds of leads per month, Sheets is sufficient:
+- Free and familiar to sales teams
+- Easy to share and collaborate
+- Built-in filtering and charts
+- Good enough for this scale
 
-If this grew to thousands of leads, I'd move to a proper database.
+For thousands of leads, I'd migrate to PostgreSQL or similar.
+
+### Google Gemini 2.5 Flash
+
+Selected for structured JSON responses with good speed. The `max_output_tokens=4000` setting ensures complete responses without truncation.
 
 ## AI Strategy
 
-### Model Selection
-
-The system uses gemini-2.5-flash for lead analysis. This model provides a good balance of speed and quality for structured JSON responses.
-
 ### Prompt Design
 
-The prompt gives Gemini clear context about ABC Company's target market. It asks for specific outputs:
+The prompt provides clear context about ABC Company's target market (small/mid-sized e-commerce). It requests structured outputs:
 
-1. Company summary
-2. Fit assessment
-3. Score from 0-100
-4. Recommended action
+1. **Company Summary** - Brief description of what the company does
+2. **Fit Assessment** - How well they match ABC's ideal customer profile
+3. **Lead Score (0-100)** - Weighted scoring across categories
+4. **Recommendation** - Specific next action for sales team
+5. **Reasoning** - Explanation of the score breakdown
 
-Breaking the score into weighted categories (industry fit 30pts, budget 25pts, lead source 20pts, potential 25pts) gives more consistent results than asking for a single number.
+### Scoring Weights
 
-### Response Validation
+Breaking the score into weighted categories produces more consistent results:
+- Industry Fit: 30 points
+- Budget Alignment: 25 points
+- Lead Source Quality: 20 points
+- Growth Potential: 25 points
 
-Every AI response goes through Pydantic validation:
+### Response Parsing
+
+AI responses are extracted using regex to handle markdown code blocks:
+
+```python
+json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response_text)
+if json_match:
+    response_text = json_match.group(1).strip()
+```
+
+Every response goes through Pydantic validation:
 
 ```python
 class AIAnalysis(BaseModel):
@@ -67,13 +88,27 @@ class AIAnalysis(BaseModel):
     reasoning: str
 ```
 
-If the AI returns malformed JSON or missing fields, we catch it and return a fallback response with score 50 and "manual review required."
+If malformed or missing fields, we return a fallback response (score 50, "manual review required").
+
+## Lead Routing Logic
+
+After AI analysis, n8n routes leads based on score:
+
+| Score Range | Classification | Actions |
+|-------------|---------------|---------|
+| ≥70 | Hot Lead | Schedule call (next day) + Send email |
+| 40-69 | Warm Lead | Set reminder (3 days) + Draft email |
+| <40 | Cold Lead | No action, stored for future reference |
+
+### Consent Check
+
+Before routing, the workflow verifies `consent === true`. Leads without consent are not contacted, only stored.
 
 ## Error Handling
 
 ### Timeouts
 
-HTTP calls to company websites have a 5-second timeout. Some sites are slow or don't respond at all. Rather than hang forever, we move on with whatever info we got.
+HTTP calls to company websites use a 5-second timeout:
 
 ```python
 async with httpx.AsyncClient(timeout=5.0) as client:
@@ -82,33 +117,87 @@ async with httpx.AsyncClient(timeout=5.0) as client:
 
 ### AI Failures
 
-If Gemini returns an unexpected response or the API is down:
-- Parse errors → neutral score (50), flag for manual review
-- API errors → same fallback, error logged
+Multiple failure modes are handled:
+- Empty response → neutral score (50), flag for manual review
+- JSON parse error → same fallback, error logged
+- API quota exceeded → same graceful degradation
 
-The lead still gets recorded; it just won't have AI analysis until someone manually retries.
+The lead is always recorded; it just won't have AI analysis until manually retried.
+
+### Empty Response Detection
+
+```python
+if not response_text:
+    return AIAnalysis(
+        companySummary=f"Could not analyze {company_name}...",
+        leadScore=50,
+        recommendation="Manual review required."
+    )
+```
 
 ### Duplicates
 
-The n8n workflow checks for existing emails before processing. If someone submits twice with the same email, the second submission gets marked as "DUPLICATE" and skipped.
+n8n checks for existing emails before processing. Duplicate submissions are marked as "DUPLICATE" and skipped.
+
+## n8n Workflow Structure
+
+```
+Google Sheets Trigger
+        ↓
+Get All Rows (for duplicate check)
+        ↓
+Code in JavaScript (normalize, detect duplicates)
+        ↓
+    IF: Duplicate?
+    ├── Yes → Update Row (mark duplicate)
+    └── No → HTTP Request (call enrichment API)
+                    ↓
+            IF: API OK?
+            ├── No → Error Log
+            └── Yes → Update Row (save results)
+                            ↓
+                    IF: Has Consent?
+                    ├── No → Done (No Consent)
+                    └── Yes → Switch: Route by Score
+                                ├── Hot → Schedule Call → Send Email
+                                ├── Warm → Set Reminder → Draft Email
+                                └── Cold → Done (Cold)
+```
+
+## Integrations
+
+### Google Calendar
+
+Hot leads trigger an event creation for the next business day:
+- Title: "Follow up: {Company Name}"
+- Duration: 30 minutes
+- Description: Lead details and AI recommendation
+
+Warm leads get a reminder event 3 days out.
+
+### Gmail
+
+Hot leads receive an automatic email thanking them for their interest.
+Warm leads get a draft email created for manual review and sending.
 
 ## What I'd Improve
 
 Given more time:
 
-1. **Retry logic** - Right now if something fails, it fails. Would add exponential backoff for transient errors.
-
-2. **Better company discovery** - Currently just guesses domains like `companyname.com`. Could add a proper search API.
-
-3. **Webhook instead of polling** - n8n polls Sheets every minute. A Google Apps Script trigger would be instant.
-
-4. **Bulk import** - CSV upload for importing existing lead lists.
-
-5. **Dashboard** - Simple web UI showing lead pipeline and scores.
+1. **Retry logic** - Add exponential backoff for transient API errors
+2. **Better company discovery** - Integrate a company database API (Clearbit, Hunter.io)
+3. **Webhook trigger** - Replace polling with Google Apps Script instant trigger
+4. **Bulk import** - CSV upload for existing lead lists
+5. **Dashboard** - Web UI showing lead pipeline, score distribution, conversion rates
+6. **CRM integration** - Push qualified leads to Salesforce or HubSpot
+7. **Email templates** - Customizable templates based on industry/score
 
 ## What Went Well
 
 - End-to-end flow works reliably
 - Deduplication prevents double-processing
 - AI scoring is consistent and explainable
+- Score-based routing automates follow-up prioritization
+- Calendar/email integration saves manual work
+- Error handling ensures no leads are lost
 - Easy to set up and run locally
